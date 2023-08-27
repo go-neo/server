@@ -1,12 +1,14 @@
 const express = require('express')
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
+const cors = require('cors');
 
 const { compileContract, deployContract } = require('./helper')
 
 const app = express()
-const port = process.env.PORT || 3000
+const port = process.env.PORT || 4000
+
+app.use(cors())
 
 app.use(express.json());
 
@@ -33,7 +35,7 @@ app.post('/deploy', async (req, res) => {
 app.post('/compile', async (req, res) => {
   const { code, config } = req.body;
 
-  console.log(code)
+  console.log('new code compiling...', code.slice(0, 100))
 
   // Generate random directory names
   const directoryName = getRandomDirectoryName();
@@ -56,8 +58,24 @@ app.post('/compile', async (req, res) => {
   `);
 
   const response = await compileContract(tempDir)
+  if (response.status !== 200) {
+    res.status(400).json({
+      message: "Failed to compile the program: " + response.message
+    })
+    return;
+  }
+  const manifestPath = path.join(tempDir, 'code.manifest.json')
+  const neffPath = path.join(tempDir, 'code.nef')
 
-  res.status(200).json({ message: 'code compiled', tempDir, response });
+  const manifest = fs.readFileSync(manifestPath, 'utf8');
+  const nefFile = fs.readFileSync(neffPath, 'binary');
+
+  res.status(200).json({
+    message: 'code compiled', tempDir, response, data: {
+      manifest: JSON.parse(manifest),
+      nef: nefFile
+    }
+  });
 });
 
 // Helper function to generate random directory names
